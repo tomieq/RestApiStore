@@ -21,6 +21,9 @@ class TableManager {
     let table: Table
     private var existingColumns: [DatabaseValue]
     private let idExpression = ExpressionFactory.intExpression("id")
+    private var tableExists: Bool {
+        !self.existingColumns.isEmpty
+    }
     
     var schema: JSON {
         var dict: [String:String] = [:]
@@ -123,6 +126,7 @@ class TableManager {
     }
     
     func delete(id: Int64) throws {
+        guard tableExists else { return }
         let query = table.filter(idExpression == id)
         guard try connection.run(query.delete()) == 1 else {
             throw TableManagerError.objectNotExists(id: id)
@@ -130,6 +134,7 @@ class TableManager {
     }
 
     func deleteMany(filter: [String:String]) throws {
+        guard tableExists else { return }
         var query = table
         for (filterKey, filterValue) in filter {
             guard let column = (self.existingColumns.first {$0.name == filterKey}) else {
@@ -148,6 +153,7 @@ class TableManager {
     }
     
     func get(id: Int64) throws -> JSON? {
+        guard tableExists else { return nil }
         let query = table.filter(idExpression == id)
         guard let row = try connection.pluck(query) else {
             return nil
@@ -167,6 +173,7 @@ class TableManager {
     }
     
     func getMany(filter: [String:String]? = nil) throws -> JSON? {
+        guard tableExists else { return nil }
         var query = table
         for (filterKey, filterValue) in filter ?? [:] {
             guard let column = (self.existingColumns.first {$0.name == filterKey}) else {
