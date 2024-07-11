@@ -12,6 +12,7 @@ enum TableManagerError: Error {
     case unsupportedDBType
     case invalidIdType
     case objectNotExists(id: Int64)
+    case unknownFilterKey(String)
 }
 
 class TableManager {
@@ -144,5 +145,38 @@ class TableManager {
             }
         }
         return JSON(dic)
+    }
+    
+    func getMany(filter: [String:String]? = nil) throws -> JSON? {
+        var query = table
+        for (filterKey, filterValue) in filter ?? [:] {
+            guard let column = (self.existingColumns.first {$0.name == filterKey}) else {
+                throw TableManagerError.unknownFilterKey(filterKey)
+            }
+            switch column.type {
+            case .string:
+                query = query.filter(ExpressionFactory.stringOptionalExpression(column.name) == filterValue)
+            case .int:
+                query = query.filter(ExpressionFactory.intOptionalExpression(column.name) == Int64(filterValue))
+            case .double:
+                query = query.filter(ExpressionFactory.doubleOptionalExpression(column.name) == Double(filterValue))
+            }
+        }
+        var dictionaries: [[String: Any]] = []
+        for row in try connection.prepare(query) {
+            var dict = [String: Any]()
+            for column in existingColumns {
+                switch column.type {
+                case .string:
+                    dict[column.name] = row[ExpressionFactory.stringOptionalExpression(column.name)]
+                case .int:
+                    dict[column.name] = row[ExpressionFactory.intOptionalExpression(column.name)]
+                case .double:
+                    dict[column.name] = row[ExpressionFactory.doubleOptionalExpression(column.name)]
+                }
+            }
+            dictionaries.append(dict)
+        }
+        return JSON(dictionaries)
     }
 }
