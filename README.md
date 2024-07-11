@@ -57,11 +57,22 @@ Will return a list of objects in json format.
 ```
 GET http://localhost:8080/myapp/data/people?name=Tom&age=38
 ```
-If you want to filter objects by its properties, just add them as query params. Above example will return all objects that have name property value equal to `Tom` and age equal to `38` 
+If you want to filter objects by its properties, just add them as query params. Above example will return all objects that have name property value equal to `Tom` and age equal to `38`
+### How to delete object
+Just send `DELETE` request:
+```
+DELETE http://localhost:8080/myapp/data/people/1
+```
+This will delete object with id = `1`. The response code is `202 Accepted`.
+
+If you want delete multiple objects as once, use query param filters:
+```
+DELETE http://localhost:8080/myapp/data/people?name=John&age=12
+```
 ### How to check object's properties
 You can check what properties are stored per object by sending request:
 ```
-GET GET http://localhost:8080/myapp/schema/people
+GET http://localhost:8080/myapp/schema/people
 ```
 You will get json with key names and it's type:
 ```json

@@ -127,6 +127,24 @@ class TableManager {
             throw TableManagerError.objectNotExists(id: id)
         }
     }
+
+    func deleteMany(filter: [String:String]) throws {
+        var query = table
+        for (filterKey, filterValue) in filter {
+            guard let column = (self.existingColumns.first {$0.name == filterKey}) else {
+                throw TableManagerError.unknownFilterKey(filterKey)
+            }
+            switch column.type {
+            case .string:
+                query = query.filter(ExpressionFactory.stringOptionalExpression(column.name) == filterValue)
+            case .int:
+                query = query.filter(ExpressionFactory.intOptionalExpression(column.name) == Int64(filterValue))
+            case .double:
+                query = query.filter(ExpressionFactory.doubleOptionalExpression(column.name) == Double(filterValue))
+            }
+        }
+        try connection.run(query.delete())
+    }
     
     func get(id: Int64) throws -> JSON? {
         let query = table.filter(idExpression == id)

@@ -56,5 +56,16 @@ server.delete[":dbName/data/:tableName/:id"] = { request, _ in
     return .accepted()
 }
 
+server.delete[":dbName/data/:tableName"] = { request, _ in
+    let source: Source = try request.pathParams.decode()
+    let tableManager = try dbManager.getTableManger(db: source.dbName, tableName: source.tableName)
+    let filters = request.queryParams.dict
+    guard !filters.isEmpty else {
+        return .badRequest(.text("Please specify filters"))
+    }
+    try tableManager.deleteMany(filter: filters)
+    return .accepted()
+}
+
 try server.start(8080)
 dispatchMain()
