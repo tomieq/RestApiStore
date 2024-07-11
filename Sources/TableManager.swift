@@ -45,6 +45,7 @@ class TableManager {
     private func createTable(for values: [DatabaseValue]) throws {
         try connection.run(table.create(ifNotExists: true) { t in
             t.column(idExpression, primaryKey: .autoincrement)
+            self.existingColumns.append(DatabaseValue(name: "id", type: .int(0)))
             for value in values {
                 if value.name == "id" { continue }
                 switch value.type {
