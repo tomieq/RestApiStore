@@ -41,12 +41,25 @@ server.get[":dbName/schema/:tableName"] = { request, _ in
     return .ok(.jsonString(tableManager.schema))
 }
 
+// create or update when id is given in body
 server.post[":dbName/data/:tableName"] = { request, _ in
     let source: Source = try request.pathParams.decode()
     let json = try JSON(data: request.body.data)
     let tableManager = try dbManager.getTableManger(db: source.dbName, tableName: source.tableName)
     let response = try tableManager.store(json)
     return .accepted(.jsonString(response))
+}
+// update many resources
+server.put[":dbName/data/:tableName"] = { request, _ in
+    let source: Source = try request.pathParams.decode()
+    let json = try JSON(data: request.body.data)
+    let tableManager = try dbManager.getTableManger(db: source.dbName, tableName: source.tableName)
+    let filters = request.queryParams.dict
+    guard !filters.isEmpty else {
+        return .badRequest(.text("Please specify filters"))
+    }
+    try tableManager.update(json, filter: filters)
+    return .accepted()
 }
 
 server.delete[":dbName/data/:tableName/:id"] = { request, _ in

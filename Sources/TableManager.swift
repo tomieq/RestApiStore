@@ -166,6 +166,46 @@ class TableManager {
         }
     }
     
+    func update(_ json: JSON, filter: [String:String]) throws {
+        try accessQueue.sync(flags: .barrier) {
+            let values = try JsonResolver.resolve(json)
+            try JsonResolver.validateTypes(incoming: values, registered: self.existingColumns)
+            var setters: [Setter] = []
+            for value in values {
+                if value.name == "id" { continue }
+                switch value.type {
+                case .int(let int):
+                    setters.append(ExpressionFactory.intOptionalExpression(value.name) <- int)
+                case .string(let txt):
+                    setters.append(ExpressionFactory.stringOptionalExpression(value.name) <- txt)
+                case .double(let number):
+                    setters.append(ExpressionFactory.doubleOptionalExpression(value.name) <- number)
+                case .bool(let flag):
+                    setters.append(ExpressionFactory.boolOptionalExpression(value.name) <- flag)
+                }
+            }
+            
+            var query = tableWithData
+            for (filterKey, filterValue) in filter {
+                guard let column = (self.existingColumns.first {$0.name == filterKey}) else {
+                    throw TableManagerError.unknownFilterKey(filterKey)
+                }
+                switch column.type {
+                case .string:
+                    query = query.filter(ExpressionFactory.stringOptionalExpression(column.name) == filterValue)
+                case .int:
+                    query = query.filter(ExpressionFactory.intOptionalExpression(column.name) == Int64(filterValue))
+                case .double:
+                    query = query.filter(ExpressionFactory.doubleOptionalExpression(column.name) == Double(filterValue))
+                case .bool:
+                    query = query.filter(ExpressionFactory.boolOptionalExpression(column.name) == Bool(filterValue))
+                }
+            }
+            let updatedRows = try connection.run(query.update(setters))
+            Logger.v(self.logTag, "Updated \(updatedRows) objects with filter \(filter.map{ "\($0.key) = \($0.value)"}) in table `\(tableName)`")
+        }
+    }
+
     func delete(id: Int64) throws {
         guard tableExists else { return }
         try accessQueue.sync(flags: .barrier) {

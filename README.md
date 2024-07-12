@@ -42,6 +42,17 @@ POST http://localhost:8080/myapp/data/people
 }
 ```
 As response you will get updated json (should be exact the same as the one in request).
+
+If you want to update many items at once, send `PUT` request where body contains json with parameters you want to update and query parameters defining filters:
+```
+PUT http://localhost:8080/myapp/data/people?name=Tom
+```
+```json
+{
+    "age": 38
+}
+```
+Above will update every object with name `Tom` setting it's `age` to 38.
 ### How to query data
 You can query for specific object with `id`:
 ```
