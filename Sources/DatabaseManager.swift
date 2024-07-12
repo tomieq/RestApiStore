@@ -12,16 +12,19 @@ class DatabaseManager {
     private let logTag = "🛢️ DatabaseManager"
     private var connections: [String: Connection] = [:]
     private var tableManagers: [String: TableManager] = [:]
+    private let accessQueue = DispatchQueue(label: "store.database", qos: .userInitiated, attributes: .concurrent)
     
     func getTableManger(db: String, tableName: String) throws -> TableManager {
-        let key = "\(db).\(tableName)"
-        if let tableManager = tableManagers[key] {
+        try accessQueue.sync(flags: .barrier) {
+            let key = "\(db).\(tableName)"
+            if let tableManager = tableManagers[key] {
+                return tableManager
+            }
+            let tableManager = try TableManager(connection: getConnection(db: db), tableName: tableName)
+            Logger.v(logTag, "Created new table `\(tableName)` in database `\(db)`")
+            tableManagers[key] = tableManager
             return tableManager
         }
-        let tableManager = try TableManager(connection: getConnection(db: db), tableName: tableName)
-        Logger.v(logTag, "Created new table `\(tableName)` in database `\(db)`")
-        tableManagers[key] = tableManager
-        return tableManager
     }
     
     private func getConnection(db: String) throws -> Connection {

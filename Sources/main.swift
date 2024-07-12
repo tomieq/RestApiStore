@@ -80,6 +80,7 @@ server.delete[":dbName/data/:tableName"] = { request, _ in
     return .accepted()
 }
 server.middleware.append( { request, header in
+    request.disableKeepAlive = true
     Logger.v("📟 Server", "Request \(request.id) \(request.method) \(request.path) from \(request.peerName ?? "")")
     request.onFinished = { id, code, duration in
         Logger.v("📟 Server", "Request \(id) finished with \(code) in \(String(format: "%.3f", duration)) seconds")
