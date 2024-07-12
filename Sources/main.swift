@@ -46,7 +46,7 @@ server.post[":dbName/data/:tableName"] = { request, _ in
     let json = try JSON(data: request.body.data)
     let tableManager = try dbManager.getTableManger(db: source.dbName, tableName: source.tableName)
     let response = try tableManager.store(json)
-    return .created(.jsonString(response))
+    return .accepted(.jsonString(response))
 }
 
 server.delete[":dbName/data/:tableName/:id"] = { request, _ in
@@ -66,6 +66,10 @@ server.delete[":dbName/data/:tableName"] = { request, _ in
     try tableManager.deleteMany(filter: filters)
     return .accepted()
 }
-
-try server.start(8080)
-dispatchMain()
+do {
+    try server.start(8080)
+    Logger.v("Server", "Started at port: \(try server.port())")
+    dispatchMain()
+} catch {
+    print("Error: \(error)")
+}

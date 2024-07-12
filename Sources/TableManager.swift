@@ -19,7 +19,8 @@ class TableManager {
     let connection: Connection
     let tableName: String
     let table: Table
-    private var existingColumns: [DatabaseValue]
+    private let logTag = "💾 TableManager"
+    private var existingColumns: [DatabaseValue] = []
     private let idExpression = ExpressionFactory.intExpression("id")
     private var tableExists: Bool {
         !self.existingColumns.isEmpty
@@ -37,8 +38,9 @@ class TableManager {
         self.connection = connection
         self.tableName = tableName
         self.table = Table(tableName)
-        self.existingColumns = try connection.schema.columnDefinitions(table: tableName).map { definition in
+        self.existingColumns = try connection.schema.columnDefinitions(table: tableName).map { [weak self] definition in
             guard let valueType = definition.type.valueType else {
+                Logger.v(self?.logTag, "Existing table `\(tableName)` contains unsupported data type: \(definition.type)")
                 throw TableManagerError.unsupportedDBType
             }
             return DatabaseValue(name: definition.name, type: valueType)
@@ -62,7 +64,7 @@ class TableManager {
                 self.existingColumns.append(DatabaseValue(name: value.name, type: value.type))
             }
         })
-        print("Created new table `\(tableName)` with columns: \(self.existingColumns.map { "`\($0.name)`: \($0.type.readable)" })")
+        Logger.v(self.logTag, "Created new table `\(tableName)` with columns: \(self.existingColumns.map { "`\($0.name)`: \($0.type.readable)" })")
     }
 
     private func alterTableIfNeeded(for values: [DatabaseValue]) throws {
@@ -79,9 +81,8 @@ class TableManager {
             case .double:
                 try connection.run(table.addColumn(ExpressionFactory.doubleOptionalExpression(value.name)))
             }
-            print("Extended table `\(tableName)` with column `\(value.name)`: \(value.type.readable)")
+            Logger.v(self.logTag, "Extended table `\(tableName)` with column `\(value.name)`: \(value.type.readable)")
             self.existingColumns.append(DatabaseValue(name: value.name, type: value.type))
-            
         }
     }
     
@@ -111,14 +112,18 @@ class TableManager {
             case .int(let number):
                 let updatedRows = try connection.run(table.filter(idExpression == number).update(setters))
                 guard updatedRows == 1 else {
+                    Logger.v(self.logTag, "Tried to update non existing object id: \(number) in table `\(tableName)`")
                     throw TableManagerError.objectNotExists(id: number)
                 }
+                Logger.v(self.logTag, "Updated object with id: \(number) in table `\(tableName)`")
                 return json
             default:
+                Logger.v(self.logTag, "Tried to update object with invalid type of ID: \(id.type.readable) in table `\(tableName)`")
                 throw TableManagerError.invalidIdType
             }
         } else {
             let id = try connection.run(table.insert(setters))
+            Logger.v(self.logTag, "Created object with id: \(id) in table `\(tableName)`")
             var response = json.dictionaryObject
             response?["id"] = id
             return JSON(response ?? [:])
@@ -129,8 +134,10 @@ class TableManager {
         guard tableExists else { return }
         let query = table.filter(idExpression == id)
         guard try connection.run(query.delete()) == 1 else {
+            Logger.v(self.logTag, "Couldn't delete object with id: \(id) from table `\(tableName)`")
             throw TableManagerError.objectNotExists(id: id)
         }
+        Logger.v(self.logTag, "Deleted object with id: \(id) from table `\(tableName)`")
     }
 
     func deleteMany(filter: [String:String]) throws {
@@ -149,13 +156,15 @@ class TableManager {
                 query = query.filter(ExpressionFactory.doubleOptionalExpression(column.name) == Double(filterValue))
             }
         }
-        try connection.run(query.delete())
+        let amount = try connection.run(query.delete())
+        Logger.v(self.logTag, "Deleted \(amount) objects with filter: \(filter.map{ "\($0.key) = \($0.value)"}) from table `\(tableName)`")
     }
     
     func get(id: Int64) throws -> JSON? {
         guard tableExists else { return nil }
         let query = table.filter(idExpression == id)
         guard let row = try connection.pluck(query) else {
+            Logger.v(logTag, "Could not find object with id: \(id) in table `\(tableName)`")
             return nil
         }
         var dic = [String: Any]()
@@ -169,6 +178,7 @@ class TableManager {
                 dic[column.name] = row[ExpressionFactory.doubleOptionalExpression(column.name)]
             }
         }
+        Logger.v(logTag, "Returned object with id: \(id) from table `\(tableName)`")
         return JSON(dic)
     }
     
@@ -203,6 +213,7 @@ class TableManager {
             }
             dictionaries.append(dict)
         }
+        Logger.v(logTag, "Returned \(dictionaries.count) objects with filter: \(filter?.map{ "\($0.key) = \($0.value)"} ?? []) from table `\(tableName)`")
         return JSON(dictionaries)
     }
 }
