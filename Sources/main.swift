@@ -66,9 +66,16 @@ server.delete[":dbName/data/:tableName"] = { request, _ in
     try tableManager.deleteMany(filter: filters)
     return .accepted()
 }
+server.middleware.append( { request, header in
+    Logger.v("📟 Server", "Request \(request.id) \(request.method) \(request.path) from \(request.peerName ?? "")")
+    request.onFinished = { id, code, duration in
+        Logger.v("📟 Server", "Request \(id) finished with \(code) in \(String(format: "%.3f", duration)) seconds")
+    }
+    return nil
+})
 do {
     try server.start(8080)
-    Logger.v("Server", "Started at port: \(try server.port())")
+    Logger.v("📟 Server", "Started at port: \(try server.port())")
     dispatchMain()
 } catch {
     print("Error: \(error)")
