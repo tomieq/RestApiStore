@@ -18,7 +18,9 @@ enum TableManagerError: Error {
 class TableManager {
     let connection: Connection
     let tableName: String
-    let table: Table
+    let tableWithData: Table
+    let tableWithMetadata: Table
+    //let table: Table
     private let logTag = "💾 TableManager"
     private let accessQueue: DispatchQueue
     private var existingColumns: [DatabaseValue] = []
@@ -37,22 +39,45 @@ class TableManager {
     
     init(connection: Connection, tableName: String) throws {
         self.connection = connection
-        self.tableName = tableName
-        self.table = Table(tableName)
-        self.accessQueue = DispatchQueue(label: "store.table.\(tableName)", qos: .userInitiated, attributes: .concurrent)
-        self.existingColumns = try connection.schema.columnDefinitions(table: tableName).map { [weak self] definition in
-            guard let valueType = definition.type.valueType else {
-                Logger.v(self?.logTag, "Existing table `\(tableName)` contains unsupported data type: \(definition.type)")
+        self.tableName = tableName.camelCaseToSnakeCase
+        self.tableWithData = Table(self.tableName)
+        self.tableWithMetadata = Table(self.tableName + "_column_definitions")
+        self.accessQueue = DispatchQueue(label: "store.table.\(self.tableName)", qos: .userInitiated, attributes: .concurrent)
+        try? self.loadMetadata()
+    }
+    
+    private func createMetadataTable() throws {
+        try connection.run(tableWithMetadata.create(ifNotExists: true) { t in
+            t.column(ExpressionFactory.stringExpression("name"))
+            t.column(ExpressionFactory.stringExpression("value_type"))
+        })
+    }
+
+    private func columnAdded(_ column: DatabaseValue) throws {
+        try connection.run(tableWithMetadata.insert(
+            ExpressionFactory.stringExpression("name") <- column.name,
+            ExpressionFactory.stringExpression("value_type") <- column.type.readable
+        ))
+        self.existingColumns.append(DatabaseValue(name: column.name, type: column.type))
+    }
+    
+    private func loadMetadata() throws {
+        for row in try connection.prepare(tableWithMetadata) {
+            let name = row[ExpressionFactory.stringExpression("name")]
+            let type = row[ExpressionFactory.stringExpression("value_type")]
+            if let valueType = ValueType.make(from: type) {
+                self.existingColumns.append(DatabaseValue(name: name, type: valueType))
+            } else {
+                Logger.v(self.logTag, "Existing table `\(tableName)` contains unsupported data type: \(type)")
                 throw TableManagerError.unsupportedDBType
             }
-            return DatabaseValue(name: definition.name, type: valueType)
         }
     }
 
     private func createTable(for values: [DatabaseValue]) throws {
-        try connection.run(table.create(ifNotExists: true) { t in
+        try connection.run(tableWithData.create(ifNotExists: true) { t in
             t.column(idExpression, primaryKey: .autoincrement)
-            self.existingColumns.append(DatabaseValue(name: "id", type: .int(0)))
+            try? columnAdded(DatabaseValue(name: "id", type: .int(0)))
             for value in values {
                 if value.name == "id" { continue }
                 switch value.type {
@@ -63,7 +88,7 @@ class TableManager {
                 case .double:
                     t.column(ExpressionFactory.doubleOptionalExpression(value.name))
                 }
-                self.existingColumns.append(DatabaseValue(name: value.name, type: value.type))
+                try? self.columnAdded(DatabaseValue(name: value.name, type: value.type))
             }
         })
         Logger.v(self.logTag, "Created new table `\(tableName)` with columns: \(self.existingColumns.map { "`\($0.name)`: \($0.type.readable)" })")
@@ -77,14 +102,14 @@ class TableManager {
             }
             switch value.type {
             case .int:
-                try connection.run(table.addColumn(ExpressionFactory.intOptionalExpression(value.name)))
+                try connection.run(tableWithData.addColumn(ExpressionFactory.intOptionalExpression(value.name)))
             case .string:
-                try connection.run(table.addColumn(ExpressionFactory.stringOptionalExpression(value.name)))
+                try connection.run(tableWithData.addColumn(ExpressionFactory.stringOptionalExpression(value.name)))
             case .double:
-                try connection.run(table.addColumn(ExpressionFactory.doubleOptionalExpression(value.name)))
+                try connection.run(tableWithData.addColumn(ExpressionFactory.doubleOptionalExpression(value.name)))
             }
             Logger.v(self.logTag, "Extended table `\(tableName)` with column `\(value.name)`: \(value.type.readable)")
-            self.existingColumns.append(DatabaseValue(name: value.name, type: value.type))
+            try columnAdded(DatabaseValue(name: value.name, type: value.type))
         }
     }
     
@@ -93,6 +118,7 @@ class TableManager {
             let values = try JsonResolver.resolve(json)
             try JsonResolver.validateTypes(incoming: values, registered: self.existingColumns)
             if self.existingColumns.isEmpty {
+                try self.createMetadataTable()
                 try self.createTable(for: values)
             } else {
                 try self.alterTableIfNeeded(for: values)
@@ -113,7 +139,7 @@ class TableManager {
             if let id = (values.first { $0.name == "id" }) {
                 switch id.type {
                 case .int(let number):
-                    let updatedRows = try connection.run(table.filter(idExpression == number).update(setters))
+                    let updatedRows = try connection.run(tableWithData.filter(idExpression == number).update(setters))
                     guard updatedRows == 1 else {
                         Logger.v(self.logTag, "Tried to update non existing object id: \(number) in table `\(tableName)`")
                         throw TableManagerError.objectNotExists(id: number)
@@ -125,7 +151,7 @@ class TableManager {
                     throw TableManagerError.invalidIdType
                 }
             } else {
-                let id = try connection.run(table.insert(setters))
+                let id = try connection.run(tableWithData.insert(setters))
                 Logger.v(self.logTag, "Created object with id: \(id) in table `\(tableName)`")
                 var response = json.dictionaryObject
                 response?["id"] = id
@@ -137,7 +163,7 @@ class TableManager {
     func delete(id: Int64) throws {
         guard tableExists else { return }
         try accessQueue.sync(flags: .barrier) {
-            let query = table.filter(idExpression == id)
+            let query = tableWithData.filter(idExpression == id)
             guard try connection.run(query.delete()) == 1 else {
                 Logger.v(self.logTag, "Couldn't delete object with id: \(id) from table `\(tableName)`")
                 throw TableManagerError.objectNotExists(id: id)
@@ -149,7 +175,7 @@ class TableManager {
     func deleteMany(filter: [String:String]) throws {
         guard tableExists else { return }
         try accessQueue.sync(flags: .barrier) {
-            var query = table
+            var query = tableWithData
             for (filterKey, filterValue) in filter {
                 guard let column = (self.existingColumns.first {$0.name == filterKey}) else {
                     throw TableManagerError.unknownFilterKey(filterKey)
@@ -171,7 +197,7 @@ class TableManager {
     func get(id: Int64) throws -> JSON? {
         guard tableExists else { return nil }
         return try accessQueue.sync {
-            let query = table.filter(idExpression == id)
+            let query = tableWithData.filter(idExpression == id)
             guard let row = try connection.pluck(query) else {
                 Logger.v(logTag, "Could not find object with id: \(id) in table `\(tableName)`")
                 return nil
@@ -195,7 +221,7 @@ class TableManager {
     func getMany(filter: [String:String]? = nil) throws -> JSON? {
         guard tableExists else { return nil }
         return try accessQueue.sync {
-            var query = table
+            var query = tableWithData
             for (filterKey, filterValue) in filter ?? [:] {
                 guard let column = (self.existingColumns.first {$0.name == filterKey}) else {
                     throw TableManagerError.unknownFilterKey(filterKey)

@@ -39,6 +39,18 @@ extension ValueType {
             return "double"
         }
     }
+    static func make(from readable: String) -> ValueType? {
+        switch readable {
+        case "string":
+            return .string("")
+        case "int":
+            return .int(0)
+        case "double":
+            return .double(0)
+        default:
+            return nil
+        }
+    }
 }
 
 struct DatabaseValue {

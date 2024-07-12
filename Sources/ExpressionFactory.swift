@@ -13,6 +13,10 @@ enum ExpressionFactory {
         Expression<Int64>(name)
     }
     
+    static func stringExpression(_ name: String) -> Expression<String> {
+        Expression<String>(name)
+    }
+    
     static func intOptionalExpression(_ name: String) -> Expression<Int64?> {
         Expression<Int64?>(name)
     }
