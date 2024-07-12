@@ -71,6 +71,7 @@ enum JsonResolverError: Error {
 }
 
 enum JsonResolver {
+    static let logTag = "JsonResolver"
     static func resolve(_ json: JSON) throws -> [DatabaseValue] {
         var values: [DatabaseValue] = []
         for (name, value) in json.dictionaryValue {
@@ -86,6 +87,7 @@ enum JsonResolver {
             case .string:
                 values.append(DatabaseValue(name: name, type: .string(value.stringValue)))
             default:
+                Logger.v(Self.logTag, "json has unsupported type for key `\(name)` \(value.type)")
                 throw JsonResolverError.typeNotSupported(key: name, type: "\(value.type)")
             }
         }
@@ -98,6 +100,7 @@ enum JsonResolver {
                 continue
             }
             guard existing.type.typeIsEqual(to: new.type) else {
+                Logger.v(Self.logTag, "json has field with incompabile type for key `\(new.name)`; Registered type is \(existing.type.readable) but got \(new.type.readable)")
                 throw JsonResolverError.typeMismatch(key: new.name, registered: existing.type.readable, received: new.type.readable)
             }
         }
