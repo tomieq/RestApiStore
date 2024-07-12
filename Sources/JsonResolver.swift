@@ -11,6 +11,7 @@ enum ValueType {
     case string(String)
     case int(Int64)
     case double(Double)
+    case bool(Bool)
 }
 
 extension ValueType {
@@ -21,6 +22,8 @@ extension ValueType {
         case (.int, .int):
             return true
         case (.double, .double):
+            return true
+        case (.bool, .bool):
             return true
         default:
             return false
@@ -37,6 +40,8 @@ extension ValueType {
             return "int"
         case .double:
             return "double"
+        case .bool:
+            return "bool"
         }
     }
     static func make(from readable: String) -> ValueType? {
@@ -47,6 +52,8 @@ extension ValueType {
             return .int(0)
         case "double":
             return .double(0)
+        case "bool":
+            return .bool(false)
         default:
             return nil
         }
@@ -74,7 +81,8 @@ enum JsonResolver {
                 } else {
                     throw JsonResolverError.typeNotSupported(key: name, type: "\(value.type)")
                 }
-                
+            case .bool:
+                values.append(DatabaseValue(name: name, type: .bool(value.boolValue)))
             case .string:
                 values.append(DatabaseValue(name: name, type: .string(value.stringValue)))
             default:

@@ -87,6 +87,8 @@ class TableManager {
                     t.column(ExpressionFactory.stringOptionalExpression(value.name))
                 case .double:
                     t.column(ExpressionFactory.doubleOptionalExpression(value.name))
+                case .bool:
+                    t.column(ExpressionFactory.boolOptionalExpression(value.name))
                 }
                 try? self.columnAdded(DatabaseValue(name: value.name, type: value.type))
             }
@@ -107,6 +109,8 @@ class TableManager {
                 try connection.run(tableWithData.addColumn(ExpressionFactory.stringOptionalExpression(value.name)))
             case .double:
                 try connection.run(tableWithData.addColumn(ExpressionFactory.doubleOptionalExpression(value.name)))
+            case .bool:
+                try connection.run(tableWithData.addColumn(ExpressionFactory.boolOptionalExpression(value.name)))
             }
             Logger.v(self.logTag, "Extended table `\(tableName)` with column `\(value.name)`: \(value.type.readable)")
             try columnAdded(DatabaseValue(name: value.name, type: value.type))
@@ -133,6 +137,8 @@ class TableManager {
                     setters.append(ExpressionFactory.stringOptionalExpression(value.name) <- txt)
                 case .double(let number):
                     setters.append(ExpressionFactory.doubleOptionalExpression(value.name) <- number)
+                case .bool(let flag):
+                    setters.append(ExpressionFactory.boolOptionalExpression(value.name) <- flag)
                 }
             }
             
@@ -187,6 +193,8 @@ class TableManager {
                     query = query.filter(ExpressionFactory.intOptionalExpression(column.name) == Int64(filterValue))
                 case .double:
                     query = query.filter(ExpressionFactory.doubleOptionalExpression(column.name) == Double(filterValue))
+                case .bool:
+                    query = query.filter(ExpressionFactory.boolOptionalExpression(column.name) == Bool(filterValue))
                 }
             }
             let amount = try connection.run(query.delete())
@@ -211,6 +219,8 @@ class TableManager {
                     dic[column.name] = row[ExpressionFactory.intOptionalExpression(column.name)]
                 case .double:
                     dic[column.name] = row[ExpressionFactory.doubleOptionalExpression(column.name)]
+                case .bool:
+                    dic[column.name] = row[ExpressionFactory.boolOptionalExpression(column.name)]
                 }
             }
             Logger.v(logTag, "Returned object with id: \(id) from table `\(tableName)`")
@@ -233,6 +243,8 @@ class TableManager {
                     query = query.filter(ExpressionFactory.intOptionalExpression(column.name) == Int64(filterValue))
                 case .double:
                     query = query.filter(ExpressionFactory.doubleOptionalExpression(column.name) == Double(filterValue))
+                case .bool:
+                    query = query.filter(ExpressionFactory.boolOptionalExpression(column.name) == Bool(filterValue))
                 }
             }
             var dictionaries: [[String: Any]] = []
@@ -246,6 +258,8 @@ class TableManager {
                         dict[column.name] = row[ExpressionFactory.intOptionalExpression(column.name)]
                     case .double:
                         dict[column.name] = row[ExpressionFactory.doubleOptionalExpression(column.name)]
+                    case .bool:
+                        dict[column.name] = row[ExpressionFactory.boolOptionalExpression(column.name)]
                     }
                 }
                 dictionaries.append(dict)

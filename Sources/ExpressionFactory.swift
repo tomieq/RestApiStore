@@ -28,4 +28,8 @@ enum ExpressionFactory {
     static func doubleOptionalExpression(_ name: String) -> Expression<Double?> {
         Expression<Double?>(name)
     }
+    
+    static func boolOptionalExpression(_ name: String) -> Expression<Bool?> {
+        Expression<Bool?>(name)
+    }
 }
