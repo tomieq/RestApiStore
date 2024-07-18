@@ -45,9 +45,25 @@ server.get[":dbName/schema/:tableName"] = { request, _ in
 server.post[":dbName/data/:tableName"] = { request, _ in
     let source: Source = try request.pathParams.decode()
     let json = try JSON(data: request.body.data)
+    guard json.array == nil else {
+        return .badRequest(.text("This endpoint accepts only single jsons. If you want create/update multiple objects, use batch operation"))
+    }
     let tableManager = try dbManager.getTableManger(db: source.dbName, tableName: source.tableName)
     let response = try tableManager.store(json)
     return .accepted(.jsonString(response))
+}
+// create or update multiple objects (array) - when id is given in body object will be updated
+server.post[":dbName/data/:tableName/batch"] = { request, _ in
+    let source: Source = try request.pathParams.decode()
+    let json = try JSON(data: request.body.data)
+    guard let list = json.array else {
+        return .badRequest(.text("This batch endpoint accepts only multiple objects (array)"))
+    }
+    let tableManager = try dbManager.getTableManger(db: source.dbName, tableName: source.tableName)
+    for json in list {
+        _ =  try tableManager.store(json)
+    }
+    return .accepted()
 }
 // update many resources
 server.put[":dbName/data/:tableName"] = { request, _ in

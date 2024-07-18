@@ -53,6 +53,24 @@ PUT http://localhost:8080/myapp/data/people?name=Tom
 }
 ```
 Above will update every object with name `Tom` setting it's `age` to 38.
+### How to insert/update multiple objects at once:
+```
+POST http://localhost:8080/myapp/data/people/batch
+```
+```json
+[
+    {
+        "name": "Tom",
+        "age": 38,
+        "surname": "Kowalsky"
+    },
+    {
+        "name": "John",
+        "surname": "Novak"
+    }
+]
+```
+If your object will contain `id` property, the object will be updated - otherwise created. In the list you can mix objects to create and update.
 ### How to query data
 You can query for specific object with `id`:
 ```
